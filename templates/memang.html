@@ -419,7 +419,7 @@
                     端口转发列表
                 </div>
                 <button type="button" class="btn btn-primary" onclick="openAddModal(event)">
-                    <i class="fas fa-plus"></i>
+                    <i class="fas fa-plus" style="color: #fff"></i>
                     添加转发
                 </button>
             </div>
@@ -731,7 +731,7 @@
                             <button type="button" class="btn btn-primary btn-small" onclick="openEditModal(event, ${stream.id}, ${stream.incoming_port}, '${safeHost}', ${stream.forwarding_port}, '${escapeHtml(stream.memo || '')}', '${safeDocUrl}', '${safeTestUrl}', '${safeRepoUrl}')" title="编辑">
                                 <i class="fas fa-edit"></i> 编辑
                             </button>
-                            <button type="button" class="btn btn-success btn-small" onclick="copyAccessUrl(event, '${safeHost}', ${stream.incoming_port})" title="复制访问地址">
+                            <button type="button" class="btn btn-success btn-small" onclick="copyAccessUrl(event, ${stream.incoming_port})" title="复制访问地址">
                                 <i class="fas fa-copy"></i> 复制
                             </button>
                             <button type="button" class="btn btn-danger btn-small" onclick="deleteStream(event, ${stream.id})">
@@ -743,15 +743,17 @@
             }).join('');
         }
 
-        // 复制访问地址
-        function copyAccessUrl(event, host, port) {
+        // 复制访问地址 - 使用当前页面 host + 入站端口
+        function copyAccessUrl(event, port) {
             // 阻止事件冒泡，防止触发其他点击事件
             if (event) {
                 event.stopPropagation();
                 event.preventDefault();
             }
 
-            const url = `http://${host}:${port}`;
+            // 使用当前访问的 host（不含端口）+ 入站端口
+            const currentHost = window.location.hostname;
+            const url = `http://${currentHost}:${port}`;
 
             // 使用现代 Clipboard API
             if (navigator.clipboard && navigator.clipboard.writeText) {
