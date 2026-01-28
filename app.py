@@ -3,7 +3,7 @@
 NPM Meta - Nginx Proxy Manager 增强管理工具
 对接 Nginx Proxy Manager API，提供带备注的端口转发管理功能
 
-GitHub: https://github.com/your-username/npm-meta
+GitHub: https://github.com/CoderXiaopang/Nginx-Proxy-Manager-Enhance
 """
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import requests

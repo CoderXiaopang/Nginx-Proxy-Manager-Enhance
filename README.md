@@ -29,8 +29,8 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/your-username/npm-meta.git
-cd npm-meta
+git clone https://github.com/CoderXiaopang/Nginx-Proxy-Manager-Enhance.git
+cd Nginx-Proxy-Manager-Enhance
 ```
 
 ### 2. 安装依赖
