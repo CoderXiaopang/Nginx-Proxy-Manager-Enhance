@@ -270,6 +270,28 @@
         window.onload = function () {
             username.addEventListener("blur", validateUsername);
             password.addEventListener("blur", validatePassword);
+
+            // 从 localStorage 读取保存的用户名并自动填充
+            const savedUser = localStorage.getItem("loginUser");
+            if (savedUser) {
+                try {
+                    const userData = JSON.parse(savedUser);
+                    // 检查是否在 7 天内
+                    const loginTime = userData.loginTime;
+                    const now = new Date().getTime();
+                    const daysDiff = (now - loginTime) / (1000 * 60 * 60 * 24);
+
+                    if (daysDiff <= 7 && userData.username) {
+                        username.value = userData.username;
+                        document.getElementById("rememberMe").checked = true;
+                    } else {
+                        // 超过 7 天，清除保存的数据
+                        localStorage.removeItem("loginUser");
+                    }
+                } catch (e) {
+                    localStorage.removeItem("loginUser");
+                }
+            }
         };
 
         // 验证账号
