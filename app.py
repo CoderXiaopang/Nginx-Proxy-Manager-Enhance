@@ -506,5 +506,5 @@ if __name__ == '__main__':
     print("=" * 60)
     
     # 启动 Flask 应用
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=6789)
 
