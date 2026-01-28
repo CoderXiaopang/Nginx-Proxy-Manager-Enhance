@@ -383,8 +383,10 @@
                             localStorage.removeItem("loginUser");
                         }
 
-                        // 跳转到管理页面
-                        window.location.href = "/manage";
+                        // 延迟跳转，给浏览器密码管理器时间触发保存提示
+                        setTimeout(function () {
+                            window.location.href = "/manage";
+                        }, 500);
                     } else {
                         // 登录失败
                         alert("登录失败：" + (data.error || "未知错误"));
