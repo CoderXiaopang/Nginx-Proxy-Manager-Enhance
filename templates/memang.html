@@ -509,6 +509,68 @@
         </div>
     </div>
 
+    <!-- 编辑转发模态框 -->
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-edit"></i>
+                    编辑端口转发
+                </h3>
+                <button type="button" class="modal-close" onclick="closeEditModal(event)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="editForm">
+                <input type="hidden" id="edit_stream_id">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">入站端口 *</label>
+                        <input type="number" class="form-input" id="edit_incoming_port" placeholder="例如: 8080" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">转发 IP *</label>
+                        <input type="text" class="form-input" id="edit_forward_ip" placeholder="例如: 192.168.1.100"
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">转发端口 *</label>
+                        <input type="number" class="form-input" id="edit_forward_port" placeholder="例如: 3000" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">备注说明</label>
+                    <textarea class="form-textarea" id="edit_memo" placeholder="例如: 开发环境 API 服务"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">文档地址</label>
+                        <input type="url" class="form-input" id="edit_doc_url" placeholder="https://...">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">在线测试</label>
+                        <input type="url" class="form-input" id="edit_test_url" placeholder="https://...">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">代码仓库</label>
+                        <input type="url" class="form-input" id="edit_repo_url" placeholder="https://...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" style="background-color: var(--gray-color); color: white;"
+                        onclick="closeEditModal(event)">
+                        <i class="fas fa-times"></i>
+                        取消
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i>
+                        保存修改
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         // 工具函数：转义 HTML 特殊字符，防止破坏 onclick 属性
         function escapeHtml(str) {
@@ -568,6 +630,35 @@
             document.getElementById('addForm').reset();
         }
 
+        // 打开编辑模态框
+        function openEditModal(event, id, incomingPort, forwardIp, forwardPort, memo, docUrl, testUrl, repoUrl) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            // 填充表单数据
+            document.getElementById('edit_stream_id').value = id;
+            document.getElementById('edit_incoming_port').value = incomingPort;
+            document.getElementById('edit_forward_ip').value = forwardIp;
+            document.getElementById('edit_forward_port').value = forwardPort;
+            document.getElementById('edit_memo').value = memo || '';
+            document.getElementById('edit_doc_url').value = docUrl || '';
+            document.getElementById('edit_test_url').value = testUrl || '';
+            document.getElementById('edit_repo_url').value = repoUrl || '';
+
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        // 关闭编辑模态框
+        function closeEditModal(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            document.getElementById('editModal').classList.remove('active');
+            document.getElementById('editForm').reset();
+        }
+
         // 获取端口转发列表
         function loadStreams() {
             fetch('/api/streams')
@@ -624,6 +715,9 @@
                 // 对可能包含引号的字段进行转义
                 const safeHost = escapeHtml(stream.forwarding_host);
                 const safeMemo = escapeHtml(stream.memo) || '--';
+                const safeDocUrl = escapeHtml(stream.doc_url || '');
+                const safeTestUrl = escapeHtml(stream.test_url || '');
+                const safeRepoUrl = escapeHtml(stream.repo_url || '');
 
                 return `
                     <tr>
@@ -634,6 +728,9 @@
                         <td>${linksHtml}</td>
                         <td>${stream.enabled ? '<span style="color: var(--success-color)">✓ 启用</span>' : '<span style="color: var(--gray-color)">✗ 禁用</span>'}</td>
                         <td>
+                            <button type="button" class="btn btn-primary btn-small" onclick="openEditModal(event, ${stream.id}, ${stream.incoming_port}, '${safeHost}', ${stream.forwarding_port}, '${escapeHtml(stream.memo || '')}', '${safeDocUrl}', '${safeTestUrl}', '${safeRepoUrl}')" title="编辑">
+                                <i class="fas fa-edit"></i> 编辑
+                            </button>
                             <button type="button" class="btn btn-success btn-small" onclick="copyAccessUrl(event, '${safeHost}', ${stream.incoming_port})" title="复制访问地址">
                                 <i class="fas fa-copy"></i> 复制
                             </button>
@@ -796,6 +893,56 @@
             if (e.target === this) {
                 closeAddModal();
             }
+        });
+
+        document.getElementById('editModal').addEventListener('click', function (e) {
+            if (e.target === this) {
+                closeEditModal();
+            }
+        });
+
+        // 编辑表单提交
+        document.getElementById('editForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const streamId = document.getElementById('edit_stream_id').value;
+            const formData = {
+                incoming_port: document.getElementById('edit_incoming_port').value,
+                forward_ip: document.getElementById('edit_forward_ip').value,
+                forward_port: document.getElementById('edit_forward_port').value,
+                memo: document.getElementById('edit_memo').value,
+                doc_url: document.getElementById('edit_doc_url').value,
+                test_url: document.getElementById('edit_test_url').value,
+                repo_url: document.getElementById('edit_repo_url').value
+            };
+
+            // 验证表单
+            if (!formData.incoming_port || !formData.forward_ip || !formData.forward_port) {
+                alert('请填写必填项！');
+                return;
+            }
+
+            // 发送更新请求
+            fetch(`/api/streams/${streamId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('更新成功！');
+                        closeEditModal();
+                        loadStreams();
+                    } else {
+                        alert('更新失败：' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('网络错误：' + error.message);
+                });
         });
     </script>
 </body>

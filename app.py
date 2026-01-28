@@ -116,6 +116,39 @@ def npm_create_stream(token, incoming_port, forward_ip, forward_port):
         return {"success": False, "error": str(e)}
 
 
+def npm_update_stream(token, stream_id, incoming_port, forward_ip, forward_port):
+    """更新端口转发"""
+    url = f"{NPM_BASE_URL}/nginx/streams/{stream_id}"
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {
+        "incoming_port": int(incoming_port),
+        "forwarding_host": forward_ip,
+        "forwarding_port": int(forward_port),
+        "tcp_forwarding": True,
+        "udp_forwarding": False,
+        "certificate_id": 0,
+        "meta": {}
+    }
+    try:
+        print(f"✏️ 更新 Stream ID: {stream_id}")
+        print(f"📦 更新 payload: {payload}")
+        r = requests.put(url, json=payload, headers=headers, timeout=10)
+        print(f"📡 更新响应状态码: {r.status_code}")
+        print(f"📡 更新响应内容: {r.text}")
+
+        if r.status_code in [200, 201]:
+            return {"success": True, "data": r.json()}
+        else:
+            try:
+                error_detail = r.json()
+                error_msg = error_detail.get('error', {}).get('message', str(error_detail))
+            except:
+                error_msg = r.text
+            return {"success": False, "error": f"更新失败 ({r.status_code}): {error_msg}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 def npm_delete_stream(token, stream_id):
     """删除端口转发"""
     url = f"{NPM_BASE_URL}/nginx/streams/{stream_id}"
@@ -260,7 +293,7 @@ def api_create_stream():
         token = session.get('token')
         data = request.json
 
-        print(f"📥 收到前端数据: {data}")  # 添加这行
+        print(f"📥 收到前端数据: {data}")
 
         incoming_port = data.get('incoming_port')
         forward_ip = data.get('forward_ip')
@@ -275,8 +308,20 @@ def api_create_stream():
             return jsonify({"success": False, "error": "参数不完整"}), 400
 
         # 验证端口范围
-        if not (1 <= int(incoming_port) <= 65535) or not (1 <= int(forward_port) <= 65535):
+        incoming_port = int(incoming_port)
+        forward_port = int(forward_port)
+        if not (1 <= incoming_port <= 65535) or not (1 <= forward_port <= 65535):
             return jsonify({"success": False, "error": "端口号必须在 1-65535 之间"}), 400
+
+        # 🔒 端口冲突验证：检查入站端口是否已被占用
+        existing_streams = npm_get_streams(token)
+        if existing_streams['success']:
+            for stream in existing_streams['data']:
+                if stream['incoming_port'] == incoming_port:
+                    return jsonify({
+                        "success": False, 
+                        "error": f"入站端口 {incoming_port} 已被占用（ID: {stream['id']}），请使用其他端口"
+                    }), 409  # 409 Conflict
 
         # 调用 NPM 创建
         result = npm_create_stream(token, incoming_port, forward_ip, forward_port)
@@ -315,6 +360,61 @@ def api_delete_stream(stream_id):
         # NPM 删除失败，返回具体错误
         print(f"❌ 删除失败: {result['error']}")
         return jsonify(result), 500
+
+
+@app.route('/api/streams/<int:stream_id>', methods=['PUT'])
+@login_required
+def api_update_stream(stream_id):
+    """更新端口转发"""
+    try:
+        token = session.get('token')
+        data = request.json
+
+        print(f"📝 收到编辑请求: stream_id={stream_id}, data={data}")
+
+        incoming_port = data.get('incoming_port')
+        forward_ip = data.get('forward_ip')
+        forward_port = data.get('forward_port')
+        memo = data.get('memo', '')
+        doc_url = data.get('doc_url', '')
+        test_url = data.get('test_url', '')
+        repo_url = data.get('repo_url', '')
+
+        # 验证参数
+        if not all([incoming_port, forward_ip, forward_port]):
+            return jsonify({"success": False, "error": "参数不完整"}), 400
+
+        # 验证端口范围
+        incoming_port = int(incoming_port)
+        forward_port = int(forward_port)
+        if not (1 <= incoming_port <= 65535) or not (1 <= forward_port <= 65535):
+            return jsonify({"success": False, "error": "端口号必须在 1-65535 之间"}), 400
+
+        # 🔒 端口冲突验证：检查入站端口是否被其他规则占用（排除自身）
+        existing_streams = npm_get_streams(token)
+        if existing_streams['success']:
+            for stream in existing_streams['data']:
+                if stream['incoming_port'] == incoming_port and stream['id'] != stream_id:
+                    return jsonify({
+                        "success": False,
+                        "error": f"入站端口 {incoming_port} 已被其他规则占用（ID: {stream['id']}）"
+                    }), 409
+
+        # 调用 NPM 更新
+        result = npm_update_stream(token, stream_id, incoming_port, forward_ip, forward_port)
+
+        if result['success']:
+            # 更新本地备注
+            save_memo(stream_id, memo, doc_url, test_url, repo_url)
+            return jsonify({"success": True, "message": "更新成功", "data": result['data']})
+        else:
+            return jsonify(result), 500
+
+    except Exception as e:
+        print(f"❌ 更新转发异常: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": f"服务器错误: {str(e)}"}), 500
 
 
 # ==================== 主程序入口 ====================
