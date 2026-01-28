@@ -149,6 +149,60 @@ def npm_update_stream(token, stream_id, incoming_port, forward_ip, forward_port)
         return {"success": False, "error": str(e)}
 
 
+def npm_toggle_stream(token, stream_id, enabled):
+    """切换端口转发启用状态"""
+    url = f"{NPM_BASE_URL}/nginx/streams/{stream_id}"
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    try:
+        # 先获取当前 stream 信息
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code != 200:
+            return {"success": False, "error": "获取转发信息失败"}
+        
+        current_data = r.json()
+        print(f"📋 当前 stream 数据: {current_data}")
+        
+        # 构建更新 payload，只包含 NPM 允许的字段
+        payload = {
+            "incoming_port": current_data['incoming_port'],
+            "forwarding_host": current_data['forwarding_host'],
+            "forwarding_port": current_data['forwarding_port'],
+            "tcp_forwarding": current_data.get('tcp_forwarding', True),
+            "udp_forwarding": current_data.get('udp_forwarding', False),
+            "certificate_id": current_data.get('certificate_id', 0),
+            "meta": current_data.get('meta', {})
+        }
+        
+        print(f"🔄 切换 Stream {stream_id} 状态: enabled={enabled}")
+        print(f"📦 发送 payload: {payload}")
+        
+        # 使用 NPM 的 enable/disable 专用接口（如果有的话）
+        # 或者用 PUT 更新完整数据
+        if enabled:
+            # 启用：发送 POST 到 enable 接口
+            enable_url = f"{NPM_BASE_URL}/nginx/streams/{stream_id}/enable"
+            r = requests.post(enable_url, headers=headers, timeout=10)
+        else:
+            # 禁用：发送 POST 到 disable 接口
+            disable_url = f"{NPM_BASE_URL}/nginx/streams/{stream_id}/disable"
+            r = requests.post(disable_url, headers=headers, timeout=10)
+        
+        print(f"📡 切换响应: {r.status_code} - {r.text}")
+
+        if r.status_code in [200, 201]:
+            return {"success": True, "data": r.json() if r.text else {}}
+        else:
+            try:
+                error_detail = r.json()
+                error_msg = error_detail.get('error', {}).get('message', str(error_detail))
+            except:
+                error_msg = r.text or f"状态码: {r.status_code}"
+            return {"success": False, "error": f"切换失败: {error_msg}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 def npm_delete_stream(token, stream_id):
     """删除端口转发"""
     url = f"{NPM_BASE_URL}/nginx/streams/{stream_id}"
@@ -414,6 +468,29 @@ def api_update_stream(stream_id):
         print(f"❌ 更新转发异常: {str(e)}")
         import traceback
         traceback.print_exc()
+        return jsonify({"success": False, "error": f"服务器错误: {str(e)}"}), 500
+
+
+@app.route('/api/streams/<int:stream_id>/toggle', methods=['PATCH'])
+@login_required
+def api_toggle_stream(stream_id):
+    """切换端口转发启用/禁用状态"""
+    try:
+        token = session.get('token')
+        data = request.json
+        enabled = data.get('enabled', True)
+
+        print(f"🔄 切换请求: stream_id={stream_id}, enabled={enabled}")
+
+        result = npm_toggle_stream(token, stream_id, enabled)
+
+        if result['success']:
+            return jsonify({"success": True, "message": "状态切换成功", "data": result['data']})
+        else:
+            return jsonify(result), 500
+
+    except Exception as e:
+        print(f"❌ 切换状态异常: {str(e)}")
         return jsonify({"success": False, "error": f"服务器错误: {str(e)}"}), 500
 
 

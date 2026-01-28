@@ -392,6 +392,58 @@
                 padding: 24px;
             }
         }
+
+        /* 开关组件样式 */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            cursor: pointer;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .toggle-switch input:checked+.toggle-slider {
+            background-color: var(--success-color);
+        }
+
+        .toggle-switch input:checked+.toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        .toggle-switch.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
     </style>
     <!-- 引入图标库 -->
     <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -726,7 +778,12 @@
                         <td>${safeHost}:${stream.forwarding_port}</td>
                         <td>${safeMemo}</td>
                         <td>${linksHtml}</td>
-                        <td>${stream.enabled ? '<span style="color: var(--success-color)">✓ 启用</span>' : '<span style="color: var(--gray-color)">✗ 禁用</span>'}</td>
+                        <td>
+                            <label class="toggle-switch" onclick="event.stopPropagation()">
+                                <input type="checkbox" ${stream.enabled ? 'checked' : ''} onchange="toggleStream(event, ${stream.id}, this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </td>
                         <td>
                             <button type="button" class="btn btn-primary btn-small" onclick="openEditModal(event, ${stream.id}, ${stream.incoming_port}, '${safeHost}', ${stream.forwarding_port}, '${escapeHtml(stream.memo || '')}', '${safeDocUrl}', '${safeTestUrl}', '${safeRepoUrl}')" title="编辑">
                                 <i class="fas fa-edit"></i> 编辑
@@ -741,6 +798,48 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        // 切换启用/禁用状态
+        function toggleStream(event, id, enabled) {
+            if (event) {
+                event.stopPropagation();
+            }
+
+            // 找到开关元素并禁用，防止重复点击
+            const checkbox = event.target;
+            const toggleLabel = checkbox.parentElement;
+            toggleLabel.classList.add('disabled');
+            checkbox.disabled = true;
+
+            fetch(`/api/streams/${id}/toggle`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ enabled: enabled })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 成功，不需要刷新列表，开关状态已更新
+                        toggleLabel.classList.remove('disabled');
+                        checkbox.disabled = false;
+                    } else {
+                        // 失败，恢复开关状态
+                        checkbox.checked = !enabled;
+                        toggleLabel.classList.remove('disabled');
+                        checkbox.disabled = false;
+                        alert('切换失败：' + data.error);
+                    }
+                })
+                .catch(error => {
+                    // 网络错误，恢复开关状态
+                    checkbox.checked = !enabled;
+                    toggleLabel.classList.remove('disabled');
+                    checkbox.disabled = false;
+                    alert('网络错误：' + error.message);
+                });
         }
 
         // 复制访问地址 - 使用当前页面 host + 入站端口
