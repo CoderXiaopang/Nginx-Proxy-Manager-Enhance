@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>端口转发管理系统</title>
+    <style>
+        /* 全局样式重置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+        }
+
+        /* 全局变量定义（方便后续修改样式） */
+        :root {
+            --primary-color: #165DFF;
+            --secondary-color: #36CFC9;
+            --light-color: #F5F7FA;
+            --dark-color: #1D2129;
+            --gray-color: #86909C;
+            --white-color: #FFFFFF;
+            --danger-color: #F53F3F;
+            --success-color: #00B42A;
+            --disable-color: #C9CDD4;
+            --border-radius: 8px;
+            --box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            --transition: all 0.3s ease-in-out;
+        }
+
+        /* 页面主体样式 */
+        body {
+            background-color: var(--light-color);
+            color: var(--dark-color);
+            line-height: 1.6;
+            padding-bottom: 50px;
+        }
+
+        /* 顶部导航栏 */
+        .navbar {
+            background-color: var(--white-color);
+            box-shadow: var(--box-shadow);
+            padding: 16px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .navbar-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 容器样式 */
+        .container {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 24px;
+        }
+
+        /* 操作栏样式 */
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .action-title {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--dark-color);
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: var(--border-radius);
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: var(--white-color);
+        }
+
+        .btn-primary:hover {
+            background-color: #0E4BD8;
+            box-shadow: 0 4px 8px rgba(22, 93, 255, 0.2);
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: var(--white-color);
+        }
+
+        .btn-success:hover {
+            background-color: #00A327;
+            box-shadow: 0 4px 8px rgba(0, 180, 42, 0.2);
+        }
+
+        /* 卡片样式 */
+        .card {
+            background-color: var(--white-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 24px;
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 表格样式 */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .table th, .table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #E8E8E8;
+        }
+
+        .table th {
+            background-color: var(--light-color);
+            color: var(--gray-color);
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .table td {
+            font-size: 14px;
+            color: var(--dark-color);
+        }
+
+        .table tr:hover td {
+            background-color: rgba(22, 93, 255, 0.03);
+        }
+
+        .table .tag {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .table .tag-enabled {
+            background-color: rgba(0, 180, 42, 0.1);
+            color: var(--success-color);
+        }
+
+        .table .tag-disabled {
+            background-color: rgba(201, 205, 212, 0.1);
+            color: var(--disable-color);
+        }
+
+        /* 开关样式（核心新增：状态切换控件） */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            cursor: pointer;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--disable-color);
+            transition: var(--transition);
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: var(--transition);
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--success-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        /* 弹窗遮罩层 */
+        .modal-mask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition);
+        }
+
+        .modal-mask.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* 弹窗内容 */
+        .modal-content {
+            background-color: var(--white-color);
+            border-radius: var(--border-radius);
+            width: 100%;
+            max-width: 500px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            transform: translateY(-20px);
+            transition: var(--transition);
+        }
+
+        .modal-mask.active .modal-content {
+            transform: translateY(0);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--dark-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-close {
+            cursor: pointer;
+            font-size: 20px;
+            color: var(--gray-color);
+            transition: var(--transition);
+        }
+
+        .modal-close:hover {
+            color: var(--danger-color);
+        }
+
+        /* 表单样式 */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--dark-color);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 16px;
+            border: 1px solid #E8E8E8;
+            border-radius: var(--border-radius);
+            font-size: 14px;
+            color: var(--dark-color);
+            transition: var(--transition);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.1);
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        /* 空状态样式 */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            color: var(--gray-color);
+            font-size: 14px;
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        /* 响应式适配（手机端） */
+        @media (max-width: 768px) {
+            .action-bar {
+                justify-content: center;
+            }
+
+            .card {
+                padding: 16px;
+            }
+
+            .table {
+                font-size: 12px;
+            }
+
+            .table th, .table td {
+                padding: 10px 8px;
+            }
+
+            /* 手机端表格横向滚动 */
+            .table-wrapper {
+                overflow-x: auto;
+            }
+        }
+    </style>
+    <!-- 引入图标库（方便显示图标，无需本地部署） -->
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-title">
+            <i class="fas fa-network-wired"></i>
+            端口转发管理系统
+        </div>
+    </nav>
+
+    <!-- 主容器 -->
+    <div class="container">
+        <!-- 操作栏 -->
+        <div class="action-bar">
+            <div class="action-title">已配置的端口转发列表</div>
+            <button class="btn btn-primary" id="addForwardBtn">
+                <i class="fas fa-plus"></i>
+                新增端口转发
+            </button>
+        </div>
+
+        <!-- 列表卡片 -->
+        <div class="card">
+            <div class="table-wrapper">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>入站端口</th>
+                            <th>目标地址</th>
+                            <th>协议类型</th>
+                            <th>状态</th>
+                            <th>备注</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="forwardTableBody">
+                        <!-- 这里会通过JS填充数据 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新增转发弹窗 -->
+    <div class="modal-mask" id="addForwardModal">
+        <div class="modal-content">
+            <div class="modal-title">
+                新增端口转发
+                <span class="modal-close" id="closeModalBtn">&times;</span>
+            </div>
+            <form id="addForwardForm">
+                <div class="form-group">
+                    <label class="form-label" for="incomingPort">入站端口 <span style="color: var(--danger-color);">*</span></label>
+                    <input type="number" class="form-input" id="incomingPort" min="1" max="65535" required placeholder="请输入入站端口（1-65535）">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="forwardIp">转发IP <span style="color: var(--danger-color);">*</span></label>
+                    <input type="text" class="form-input" id="forwardIp" required placeholder="请输入目标IP地址（如：192.168.1.100）">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="forwardPort">转发端口 <span style="color: var(--danger-color);">*</span></label>
+                    <input type="number" class="form-input" id="forwardPort" min="1" max="65535" required placeholder="请输入目标端口（1-65535）">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="memo">备注</label>
+                    <input type="text" class="form-input" id="memo" placeholder="请输入备注信息（可选）">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary" id="cancelModalBtn">取消</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i>
+                        保存配置
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 模拟端口转发数据（后续替换为Python后端接口返回数据）
+        const mockForwardData = [
+            {
+                id: 1,
+                incomingPort: 8080,
+                forwardIp: "106.75.1.139",
+                forwardPort: 80,
+                protocol: "TCP",
+                enabled: true,
+                memo: "网站前台服务"
+            },
+            {
+                id: 2,
+                incomingPort: 9090,
+                forwardIp: "192.168.1.50",
+                forwardPort: 3306,
+                protocol: "TCP",
+                enabled: true,
+                memo: "MySQL数据库服务"
+            },
+            {
+                id: 3,
+                incomingPort: 7001,
+                forwardIp: "127.0.0.1",
+                forwardPort: 7001,
+                protocol: "TCP",
+                enabled: false,
+                memo: "NPM管理后台（暂禁用）"
+            }
+        ];
+
+        // DOM 元素获取
+        const addForwardBtn = document.getElementById("addForwardBtn");
+        const addForwardModal = document.getElementById("addForwardModal");
+        const closeModalBtn = document.getElementById("closeModalBtn");
+        const cancelModalBtn = document.getElementById("cancelModalBtn");
+        const addForwardForm = document.getElementById("addForwardForm");
+        const forwardTableBody = document.getElementById("forwardTableBody");
+
+        // 页面加载完成后渲染列表
+        window.onload = function() {
+            renderForwardList();
+        };
+
+        // 渲染端口转发列表
+        function renderForwardList() {
+            // 清空表格内容
+            forwardTableBody.innerHTML = "";
+
+            // 如果没有数据，显示空状态
+            if (mockForwardData.length === 0) {
+                const emptyTr = document.createElement("tr");
+                emptyTr.innerHTML = `
+                    <td colspan="7" style="text-align: center; padding: 40px 0;">
+                        <div class="empty-state">
+                            <i class="fas fa-server"></i>
+                            暂无端口转发配置，点击"新增端口转发"创建第一个配置吧
+                        </div>
+                    </td>
+                `;
+                forwardTableBody.appendChild(emptyTr);
+                return;
+            }
+
+            // 遍历数据，生成表格行（核心修改：新增开关控件，绑定状态切换事件）
+            mockForwardData.forEach(item => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${item.id}</td>
+                    <td>${item.incomingPort}</td>
+                    <td>${item.forwardIp}:${item.forwardPort}</td>
+                    <td>${item.protocol}</td>
+                    <td>
+                        <!-- 新增：状态开关 + 标签展示，兼顾视觉和操作性 -->
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label class="switch">
+                                <input type="checkbox" ${item.enabled ? 'checked' : ''} onchange="toggleForwardStatus(${item.id}, this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="tag ${item.enabled ? 'tag-enabled' : 'tag-disabled'}">
+                                ${item.enabled ? '已启用' : '已禁用'}
+                            </span>
+                        </div>
+                    </td>
+                    <td>${item.memo || "--"}</td>
+                    <td>
+                        <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="editForward(${item.id})">
+                            <i class="fas fa-edit"></i> 编辑
+                        </button>
+                        <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px; margin-left: 8px;" onclick="deleteForward(${item.id})">
+                            <i class="fas fa-trash"></i> 删除
+                        </button>
+                    </td>
+                `;
+                forwardTableBody.appendChild(tr);
+            });
+        }
+
+        // 核心新增：切换端口转发状态（启用/禁用）
+        function toggleForwardStatus(id, isEnabled) {
+            // 1. 查找对应ID的数据并更新状态
+            const targetItem = mockForwardData.find(item => item.id === id);
+            if (targetItem) {
+                targetItem.enabled = isEnabled;
+                
+                // 2. 提示用户（后续对接后端可删除或改为接口调用结果提示）
+                const statusText = isEnabled ? "启用" : "禁用";
+                alert(`ID为 ${id} 的端口转发已${statusText}成功！`);
+                
+                // 3. （可选）如果需要实时刷新列表（当前开关和标签已联动，此步骤可省略，仅做兜底）
+                // renderForwardList();
+            } else {
+                alert(`未找到ID为 ${id} 的端口转发配置！`);
+            }
+
+            // 后续对接Python后端时，在这里添加接口请求：
+            // fetch(`http://你的后端地址/api/toggle_status/${id}`, {
+            //     method: "POST",
+            //     body: JSON.stringify({ enabled: isEnabled })
+            // }).then(response => response.json())
+            //   .then(data => {
+            //       if (data.success) {
+            //           // 状态更新成功逻辑
+            //       } else {
+            //           alert("状态修改失败：" + data.msg);
+            //           // 回滚开关状态
+            //           renderForwardList();
+            //       }
+            //   });
+        }
+
+        // 打开新增弹窗
+        addForwardBtn.addEventListener("click", function() {
+            addForwardModal.classList.add("active");
+            // 重置表单
+            addForwardForm.reset();
+        });
+
+        // 关闭弹窗（三种方式：关闭按钮、取消按钮、点击遮罩层）
+        function closeModal() {
+            addForwardModal.classList.remove("active");
+        }
+
+        closeModalBtn.addEventListener("click", closeModal);
+        cancelModalBtn.addEventListener("click", closeModal);
+        addForwardModal.addEventListener("click", function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        // 提交新增表单
+        addForwardForm.addEventListener("submit", function(e) {
+            e.preventDefault(); // 阻止表单默认提交
+
+            // 获取表单数据
+            const incomingPort = parseInt(document.getElementById("incomingPort").value);
+            const forwardIp = document.getElementById("forwardIp").value;
+            const forwardPort = parseInt(document.getElementById("forwardPort").value);
+            const memo = document.getElementById("memo").value;
+
+            // 构造新的转发配置
+            const newForward = {
+                id: mockForwardData.length + 1,
+                incomingPort: incomingPort,
+                forwardIp: forwardIp,
+                forwardPort: forwardPort,
+                protocol: "TCP",
+                enabled: true, // 新增配置默认启用
+                memo: memo
+            };
+
+            // 添加到模拟数据中（后续替换为调用Python后端接口）
+            mockForwardData.push(newForward);
+
+            // 关闭弹窗
+            closeModal();
+
+            // 重新渲染列表
+            renderForwardList();
+
+            // 提示成功
+            alert("端口转发配置新增成功！");
+        });
+
+        // 编辑转发配置（后续完善，当前仅做提示）
+        function editForward(id) {
+            alert(`即将编辑ID为 ${id} 的端口转发配置（后续对接后端接口实现）`);
+        }
+
+        // 删除转发配置（后续完善，当前仅做提示和模拟删除）
+        function deleteForward(id) {
+            if (confirm(`确定要删除ID为 ${id} 的端口转发配置吗？删除后不可恢复！`)) {
+                // 模拟删除：过滤掉对应ID的数据
+                for (let i = 0; i < mockForwardData.length; i++) {
+                    if (mockForwardData[i].id === id) {
+                        mockForwardData.splice(i, 1);
+                        break;
+                    }
+                }
+
+                // 重新渲染列表
+                renderForwardList();
+
+                // 提示成功
+                alert("端口转发配置删除成功！");
+            }
+        }
+    </script>
+</body>
+</html>

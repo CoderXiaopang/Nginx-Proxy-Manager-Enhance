@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>端口转发管理系统</title>
+    <style>
+        /* 全局样式重置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+        }
+
+        /* 全局变量 */
+        :root {
+            --primary-color: #165DFF;
+            --secondary-color: #36CFC9;
+            --light-color: #F5F7FA;
+            --dark-color: #1D2129;
+            --gray-color: #86909C;
+            --white-color: #FFFFFF;
+            --danger-color: #F53F3F;
+            --success-color: #00B42A;
+            --border-radius: 8px;
+            --box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            --transition: all 0.3s ease-in-out;
+        }
+
+        /* 页面主体 */
+        body {
+            background-color: var(--light-color);
+            color: var(--dark-color);
+            line-height: 1.6;
+            min-height: 100vh;
+            background-image: linear-gradient(120deg, #f0f7ff 0%, #e6f0ff 100%);
+        }
+
+        /* 顶部导航栏 */
+        .navbar {
+            background-color: var(--white-color);
+            box-shadow: var(--box-shadow);
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--dark-color);
+        }
+
+        .navbar-brand i {
+            color: var(--primary-color);
+            font-size: 24px;
+        }
+
+        .btn-logout {
+            padding: 8px 16px;
+            background-color: var(--danger-color);
+            color: var(--white-color);
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 14px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-logout:hover {
+            background-color: #D52B2B;
+            box-shadow: 0 4px 12px rgba(245, 63, 63, 0.2);
+        }
+
+        /* 主容器 */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 32px;
+        }
+
+        /* 卡片样式 */
+        .card {
+            background-color: var(--white-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--dark-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-title-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title i {
+            color: var(--primary-color);
+        }
+
+        /* 表单样式 */
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-label {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--dark-color);
+        }
+
+        .form-input,
+        .form-textarea {
+            padding: 10px 14px;
+            border: 1px solid #E8E8E8;
+            border-radius: var(--border-radius);
+            font-size: 14px;
+            color: var(--dark-color);
+            transition: var(--transition);
+            background-color: var(--light-color);
+        }
+
+        .form-input:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.1);
+            background-color: var(--white-color);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        /* 按钮样式 */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: var(--white-color);
+        }
+
+        .btn-primary:hover {
+            background-color: #0E4BD8;
+            box-shadow: 0 4px 12px rgba(22, 93, 255, 0.2);
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: var(--white-color);
+        }
+
+        .btn-danger:hover {
+            background-color: #D52B2B;
+            box-shadow: 0 4px 12px rgba(245, 63, 63, 0.2);
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: var(--white-color);
+        }
+
+        .btn-success:hover {
+            background-color: #009922;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        /* 模态框样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: var(--white-color);
+            border-radius: var(--border-radius);
+            padding: 32px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--dark-color);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--gray-color);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .modal-close:hover {
+            color: var(--danger-color);
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        /* 表格样式 */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background-color: var(--light-color);
+        }
+
+        th {
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--dark-color);
+            border-bottom: 2px solid #E8E8E8;
+        }
+
+        td {
+            padding: 14px 16px;
+            font-size: 14px;
+            color: var(--dark-color);
+            border-bottom: 1px solid #F0F0F0;
+        }
+
+        tbody tr {
+            transition: var(--transition);
+        }
+
+        tbody tr:hover {
+            background-color: #FAFAFA;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--gray-color);
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        /* 加载状态 */
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--gray-color);
+        }
+
+        .loading i {
+            font-size: 32px;
+            color: var(--primary-color);
+        }
+
+        /* 链接样式 */
+        .link-item {
+            color: var(--primary-color);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: var(--transition);
+        }
+
+        .link-item:hover {
+            color: #0E4BD8;
+            text-decoration: underline;
+        }
+
+        .link-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 12px 16px;
+            }
+
+            .container {
+                padding: 0 16px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            th,
+            td {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+
+            .modal-content {
+                padding: 24px;
+            }
+        }
+    </style>
+    <!-- 引入图标库 -->
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <!-- 顶部导航栏 -->
+    <div class="navbar">
+        <div class="navbar-brand">
+            <i class="fas fa-network-wired"></i>
+            端口转发管理系统
+        </div>
+        <button type="button" class="btn-logout" onclick="logout(event)">
+            <i class="fas fa-sign-out-alt"></i>
+            退出登录
+        </button>
+    </div>
+
+    <div class="container">
+        <!-- 转发列表 -->
+        <div class="card">
+            <div class="card-title">
+                <div class="card-title-left">
+                    <i class="fas fa-list"></i>
+                    端口转发列表
+                </div>
+                <button type="button" class="btn btn-primary" onclick="openAddModal(event)">
+                    <i class="fas fa-plus"></i>
+                    添加转发
+                </button>
+            </div>
+            <div class="table-container">
+                <table id="streamTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>入站端口</th>
+                            <th>转发目标</th>
+                            <th>备注</th>
+                            <th>快捷链接</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="streamTableBody">
+                        <tr>
+                            <td colspan="7" class="loading">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <div>正在加载数据...</div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加转发模态框 -->
+    <div class="modal" id="addModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-plus-circle"></i>
+                    添加端口转发
+                </h3>
+                <button type="button" class="modal-close" onclick="closeAddModal(event)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="addForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">入站端口 *</label>
+                        <input type="number" class="form-input" id="incoming_port" placeholder="例如: 8080" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">转发 IP *</label>
+                        <input type="text" class="form-input" id="forward_ip" placeholder="例如: 192.168.1.100" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">转发端口 *</label>
+                        <input type="number" class="form-input" id="forward_port" placeholder="例如: 3000" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">备注说明</label>
+                    <textarea class="form-textarea" id="memo" placeholder="例如: 开发环境 API 服务"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">文档地址</label>
+                        <input type="url" class="form-input" id="doc_url" placeholder="https://...">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">在线测试</label>
+                        <input type="url" class="form-input" id="test_url" placeholder="https://...">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">代码仓库</label>
+                        <input type="url" class="form-input" id="repo_url" placeholder="https://...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" style="background-color: var(--gray-color); color: white;"
+                        onclick="closeAddModal(event)">
+                        <i class="fas fa-times"></i>
+                        取消
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-check"></i>
+                        确认创建
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 工具函数：转义 HTML 特殊字符，防止破坏 onclick 属性
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, "\\'");  // 将单引号转义为 \'
+        }
+
+        // 全局变量：存储当前端口列表，用于计算自增端口
+        let currentStreams = [];
+        const BASE_PORT = 7005;  // 起始端口
+
+        // 页面加载完成后获取列表
+        window.onload = function () {
+            loadStreams();
+        };
+
+        // 计算下一个可用端口
+        function getNextPort() {
+            if (currentStreams.length === 0) {
+                return BASE_PORT;
+            }
+            // 找出所有 7000+ 的入站端口
+            const ports = currentStreams
+                .map(s => s.incoming_port)
+                .filter(p => p >= 7000);
+
+            if (ports.length === 0) {
+                return BASE_PORT;
+            }
+            // 返回最大端口 + 1
+            return Math.max(...ports) + 1;
+        }
+
+        // 打开添加模态框
+        function openAddModal(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            // 自动填充下一个可用端口
+            document.getElementById('incoming_port').value = getNextPort();
+            document.getElementById('addModal').classList.add('active');
+        }
+
+        // 关闭添加模态框
+        function closeAddModal(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            document.getElementById('addModal').classList.remove('active');
+            document.getElementById('addForm').reset();
+        }
+
+        // 获取端口转发列表
+        function loadStreams() {
+            fetch('/api/streams')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        currentStreams = data.data;  // 保存数据用于端口自增计算
+                        renderTable(data.data);
+                    } else {
+                        showError('获取列表失败：' + data.error);
+                    }
+                })
+                .catch(error => {
+                    showError('网络错误：' + error.message);
+                });
+        }
+
+        // 渲染表格
+        function renderTable(streams) {
+            const tbody = document.getElementById('streamTableBody');
+
+            if (streams.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <div>暂无端口转发记录</div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = streams.map(stream => {
+                // 构建快捷链接
+                const links = [];
+                if (stream.doc_url) {
+                    links.push(`<a href="${escapeHtml(stream.doc_url)}" target="_blank" class="link-item" title="文档">
+                        <i class="fas fa-book"></i> 文档
+                    </a>`);
+                }
+                if (stream.test_url) {
+                    links.push(`<a href="${escapeHtml(stream.test_url)}" target="_blank" class="link-item" title="测试">
+                        <i class="fas fa-flask"></i> 测试
+                    </a>`);
+                }
+                if (stream.repo_url) {
+                    links.push(`<a href="${escapeHtml(stream.repo_url)}" target="_blank" class="link-item" title="代码仓库">
+                        <i class="fab fa-github"></i> 仓库
+                    </a>`);
+                }
+                const linksHtml = links.length > 0 ? `<div class="link-group">${links.join('')}</div>` : '--';
+
+                // 对可能包含引号的字段进行转义
+                const safeHost = escapeHtml(stream.forwarding_host);
+                const safeMemo = escapeHtml(stream.memo) || '--';
+
+                return `
+                    <tr>
+                        <td>${stream.id}</td>
+                        <td>${stream.incoming_port}</td>
+                        <td>${safeHost}:${stream.forwarding_port}</td>
+                        <td>${safeMemo}</td>
+                        <td>${linksHtml}</td>
+                        <td>${stream.enabled ? '<span style="color: var(--success-color)">✓ 启用</span>' : '<span style="color: var(--gray-color)">✗ 禁用</span>'}</td>
+                        <td>
+                            <button type="button" class="btn btn-success btn-small" onclick="copyAccessUrl(event, '${safeHost}', ${stream.incoming_port})" title="复制访问地址">
+                                <i class="fas fa-copy"></i> 复制
+                            </button>
+                            <button type="button" class="btn btn-danger btn-small" onclick="deleteStream(event, ${stream.id})">
+                                <i class="fas fa-trash"></i> 删除
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // 复制访问地址
+        function copyAccessUrl(event, host, port) {
+            // 阻止事件冒泡，防止触发其他点击事件
+            if (event) {
+                event.stopPropagation();
+                event.preventDefault();
+            }
+
+            const url = `http://${host}:${port}`;
+
+            // 使用现代 Clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    alert(`已复制到剪贴板：\n${url}`);
+                }).catch(err => {
+                    // 降级方案
+                    fallbackCopy(url);
+                });
+            } else {
+                // 降级方案
+                fallbackCopy(url);
+            }
+        }
+
+        // 降级复制方案（兼容旧浏览器）
+        function fallbackCopy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                alert(`已复制到剪贴板：\n${text}`);
+            } catch (err) {
+                alert(`复制失败，请手动复制：\n${text}`);
+            }
+            document.body.removeChild(textarea);
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            const tbody = document.getElementById('streamTableBody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="empty-state" style="color: var(--danger-color)">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <div>${message}</div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        // 添加转发表单提交
+        document.getElementById('addForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const formData = {
+                incoming_port: document.getElementById('incoming_port').value,
+                forward_ip: document.getElementById('forward_ip').value,
+                forward_port: document.getElementById('forward_port').value,
+                memo: document.getElementById('memo').value,
+                doc_url: document.getElementById('doc_url').value,
+                test_url: document.getElementById('test_url').value,
+                repo_url: document.getElementById('repo_url').value
+            };
+
+            // 验证表单
+            if (!formData.incoming_port || !formData.forward_ip || !formData.forward_port) {
+                alert('请填写必填项！');
+                return;
+            }
+
+            // 发送请求
+            fetch('/api/streams', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('创建成功！');
+                        closeAddModal();
+                        loadStreams();
+                    } else {
+                        alert('创建失败：' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('网络错误：' + error.message);
+                });
+        });
+
+        // 删除转发 - 修复版：添加 event 参数阻止冒泡
+        function deleteStream(event, id) {
+            // 阻止事件冒泡，这是修复"弹窗闪现"的关键
+            if (event) {
+                event.stopPropagation();
+                event.preventDefault();
+            }
+
+            if (!confirm('确定要删除这条转发记录吗？此操作不可恢复！')) {
+                return;
+            }
+
+            fetch(`/api/streams/${id}`, {
+                method: 'DELETE'
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('删除成功！');
+                        loadStreams();
+                    } else {
+                        alert('删除失败：' + data.error);
+                    }
+                })
+                .catch(error => {
+                    alert('网络错误：' + error.message);
+                });
+        }
+
+        // 登出
+        function logout(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            if (confirm('确定要退出登录吗？')) {
+                fetch('/api/logout', {
+                    method: 'POST'
+                })
+                    .then(() => {
+                        window.location.href = '/';
+                    })
+                    .catch(() => {
+                        window.location.href = '/';
+                    });
+            }
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('addModal').addEventListener('click', function (e) {
+            if (e.target === this) {
+                closeAddModal();
+            }
+        });
+    </script>
+</body>
+
+</html>
