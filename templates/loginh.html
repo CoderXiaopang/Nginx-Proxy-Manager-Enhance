@@ -224,7 +224,7 @@
         </div>
 
         <!-- 登录表单 -->
-        <form id="loginForm" autocomplete="on">
+        <form id="loginForm" method="POST" action="/api/login" autocomplete="on">
             <div class="form-group">
                 <label class="form-label" for="username">账号 / 邮箱</label>
                 <input type="text" class="form-input" id="username" name="username" autocomplete="username"
@@ -241,7 +241,7 @@
 
             <div class="form-helper">
                 <div class="remember-checkbox">
-                    <input type="checkbox" id="rememberMe">
+                    <input type="checkbox" id="rememberMe" name="rememberMe">
                     <label for="rememberMe">记住我（7天内免登录）</label>
                 </div>
                 <div class="forgot-password" onclick="forgotPasswordTip()">忘记密码？</div>
@@ -294,6 +294,15 @@
                     localStorage.removeItem("loginUser");
                 }
             }
+
+            // 检查 URL 参数中是否有登录错误信息（后端重定向回来的）
+            const urlParams = new URLSearchParams(window.location.search);
+            const errorMsg = urlParams.get('error');
+            if (errorMsg) {
+                alert("登录失败：" + decodeURIComponent(errorMsg));
+                // 清除 URL 参数
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
         };
 
         // 验证账号
@@ -336,70 +345,34 @@
             return isValid;
         }
 
-        // 表单提交事件（核心登录逻辑）
+        // 表单提交事件 - 先进行前端验证，然后让表单正常提交到后端
         loginForm.addEventListener("submit", function (e) {
-            e.preventDefault(); // 阻止表单默认提交
-
             // 先执行表单验证
             const isUsernameValid = validateUsername();
             const isPasswordValid = validatePassword();
 
             if (!isUsernameValid || !isPasswordValid) {
-                return; // 验证失败，终止登录
+                e.preventDefault(); // 验证失败，阻止提交
+                return;
             }
 
-            // 验证通过，调用后端登录 API
+            // 验证通过，保存用户名到 localStorage（记住我功能）
+            const rememberMe = document.getElementById("rememberMe").checked;
+            if (rememberMe) {
+                localStorage.setItem("loginUser", JSON.stringify({
+                    username: username.value.trim(),
+                    loginTime: new Date().getTime()
+                }));
+            } else {
+                localStorage.removeItem("loginUser");
+            }
+
+            // 显示加载状态
             loginBtn.disabled = true;
             loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在登录...';
 
-            // 构建登录数据
-            const loginData = {
-                username: username.value.trim(),
-                password: password.value.trim(),
-                rememberMe: document.getElementById("rememberMe").checked
-            };
-
-            // 发送 AJAX 请求到后端
-            fetch('/api/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(loginData)
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // 登录成功
-                        alert("登录成功！即将跳转到管理系统首页");
-
-                        // 记住用户名（可选）
-                        if (loginData.rememberMe) {
-                            localStorage.setItem("loginUser", JSON.stringify({
-                                username: loginData.username,
-                                loginTime: new Date().getTime()
-                            }));
-                        } else {
-                            localStorage.removeItem("loginUser");
-                        }
-
-                        // 延迟跳转，给浏览器密码管理器时间触发保存提示
-                        setTimeout(function () {
-                            window.location.href = "/manage";
-                        }, 500);
-                    } else {
-                        // 登录失败
-                        alert("登录失败：" + (data.error || "未知错误"));
-                        loginBtn.disabled = false;
-                        loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> 登录系统';
-                    }
-                })
-                .catch(error => {
-                    // 网络错误
-                    alert("网络错误：" + error.message);
-                    loginBtn.disabled = false;
-                    loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> 登录系统';
-                });
+            // 不阻止默认提交，让表单正常 POST 到 /api/login
+            // 这样浏览器会识别为真正的表单提交，触发密码管理器的保存提示
         });
 
         // 忘记密码提示

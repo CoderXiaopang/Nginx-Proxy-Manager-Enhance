@@ -453,9 +453,40 @@
         /* 备注列优化：限制宽度 + 省略号 */
         .memo-cell {
             max-width: 200px;
+            position: relative;
+        }
+
+        .memo-content {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            display: inline-block;
+            max-width: 180px;
+            vertical-align: middle;
+            transition: var(--transition);
+        }
+
+        .memo-content.expanded {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: unset;
+            max-width: none;
+            word-break: break-word;
+        }
+
+        .memo-toggle {
+            display: inline-block;
+            margin-left: 6px;
+            cursor: pointer;
+            color: var(--primary-color);
+            font-size: 12px;
+            vertical-align: middle;
+            transition: var(--transition);
+        }
+
+        .memo-toggle:hover {
+            color: #0E4BD8;
+            transform: scale(1.1);
         }
 
         /* 连通性指示灯 */
@@ -821,6 +852,14 @@
                 const safeTestUrl = escapeHtml(stream.test_url || '');
                 const safeRepoUrl = escapeHtml(stream.repo_url || '');
 
+                // 备注内容：如果内容超过30个字符，显示展开按钮
+                const memoText = stream.memo || '';
+                const needsExpand = memoText.length > 30;
+                const memoHtml = needsExpand
+                    ? `<span class="memo-content" id="memo-${stream.id}">${safeMemo}</span>
+                       <i class="fas fa-chevron-down memo-toggle" onclick="toggleMemo(event, ${stream.id})" title="展开"></i>`
+                    : safeMemo;
+
                 // 连通性状态
                 let healthDotClass = 'status-unknown';
                 let healthTitle = '检测中...';
@@ -837,7 +876,7 @@
                         <td>${stream.id}</td>
                         <td>${stream.incoming_port}</td>
                         <td>${safeHost}:${stream.forwarding_port}</td>
-                        <td class="memo-cell" title="${safeMemo}">${safeMemo}</td>
+                        <td class="memo-cell">${memoHtml}</td>
                         <td>
                             <div style="display: flex; align-items: center;" title="${escapeHtml(healthTitle)}">
                                 <span class="status-dot ${healthDotClass}"></span>
@@ -867,6 +906,31 @@
             }).join('');
 
         }
+
+        // 展开/收起备注
+        function toggleMemo(event, streamId) {
+            if (event) {
+                event.stopPropagation();
+            }
+
+            const memoElement = document.getElementById(`memo-${streamId}`);
+            const toggleIcon = event.target;
+
+            if (memoElement.classList.contains('expanded')) {
+                // 收起
+                memoElement.classList.remove('expanded');
+                toggleIcon.classList.remove('fa-chevron-up');
+                toggleIcon.classList.add('fa-chevron-down');
+                toggleIcon.title = '展开';
+            } else {
+                // 展开
+                memoElement.classList.add('expanded');
+                toggleIcon.classList.remove('fa-chevron-down');
+                toggleIcon.classList.add('fa-chevron-up');
+                toggleIcon.title = '收起';
+            }
+        }
+
 
         // 切换启用/禁用状态
         function toggleStream(event, id, enabled) {

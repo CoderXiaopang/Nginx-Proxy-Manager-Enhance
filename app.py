@@ -464,23 +464,42 @@ def manage_page():
 # ==================== 路由：API ====================
 @app.route('/api/login', methods=['POST'])
 def api_login():
-    """登录接口"""
-    data = request.json
-    email = data.get('username')  # 前端字段是 username
-    password = data.get('password')
-    
+    """登录接口 - 支持 JSON 和表单提交两种方式"""
+    # 判断请求类型：JSON 或表单
+    if request.is_json:
+        data = request.json
+        email = data.get('username')
+        password = data.get('password')
+        remember_me = data.get('rememberMe', False)
+        is_form_submit = False
+    else:
+        # 表单提交
+        email = request.form.get('username')
+        password = request.form.get('password')
+        remember_me = request.form.get('rememberMe') == 'on'
+        is_form_submit = True
+
     if not email or not password:
+        if is_form_submit:
+            return redirect('/?error=' + requests.utils.quote("账号密码不能为空"))
         return jsonify({"success": False, "error": "账号密码不能为空"}), 400
-    
+
     # 调用 NPM 登录
     result = npm_login(email, password)
     if result['success']:
         # 登录成功，保存 token 到 session
-        session.permanent = data.get('rememberMe', False)  # 是否记住登录
+        session.permanent = remember_me  # 是否记住登录
         session['token'] = result['token']
         session['email'] = email
+
+        if is_form_submit:
+            # 表单提交：重定向到管理页面（触发浏览器密码保存提示）
+            return redirect('/manage')
         return jsonify({"success": True, "message": "登录成功"})
     else:
+        if is_form_submit:
+            # 表单提交失败：重定向回登录页并显示错误
+            return redirect('/?error=' + requests.utils.quote(result.get('error', '登录失败')))
         return jsonify(result), 401
 
 
