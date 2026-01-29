@@ -444,7 +444,49 @@
             opacity: 0.6;
             cursor: not-allowed;
         }
+
+        .toggle-switch.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* 备注列优化：限制宽度 + 省略号 */
+        .memo-cell {
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 连通性指示灯 */
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .status-success {
+            background-color: var(--success-color);
+            box-shadow: 0 0 4px var(--success-color);
+        }
+
+        .status-error {
+            background-color: var(--danger-color);
+            box-shadow: 0 0 4px var(--danger-color);
+        }
+
+        .status-unknown {
+            background-color: var(--gray-color);
+        }
+
+        .health-text {
+            font-size: 12px;
+            color: var(--gray-color);
+        }
     </style>
+
     <!-- 引入图标库 -->
     <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -483,14 +525,16 @@
                             <th>入站端口</th>
                             <th>转发目标</th>
                             <th>备注</th>
+                            <th>连通性</th>
                             <th>快捷链接</th>
                             <th>状态</th>
                             <th>操作</th>
+
                         </tr>
                     </thead>
                     <tbody id="streamTableBody">
                         <tr>
-                            <td colspan="7" class="loading">
+                            <td colspan="8" class="loading">
                                 <i class="fas fa-spinner fa-spin"></i>
                                 <div>正在加载数据...</div>
                             </td>
@@ -642,7 +686,13 @@
         // 页面加载完成后获取列表
         window.onload = function () {
             loadStreams();
+
+            // 每 60 秒刷新一次数据（更新健康状态）
+            setInterval(function () {
+                loadStreams();
+            }, 60000); // 60000ms = 60秒
         };
+
 
         // 计算下一个可用端口
         function getNextPort() {
@@ -735,7 +785,7 @@
             if (streams.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="7" class="empty-state">
+                        <td colspan="8" class="empty-state">
                             <i class="fas fa-inbox"></i>
                             <div>暂无端口转发记录</div>
                         </td>
@@ -771,12 +821,29 @@
                 const safeTestUrl = escapeHtml(stream.test_url || '');
                 const safeRepoUrl = escapeHtml(stream.repo_url || '');
 
+                // 连通性状态
+                let healthDotClass = 'status-unknown';
+                let healthTitle = '检测中...';
+                if (stream.health_status === 'ok') {
+                    healthDotClass = 'status-success';
+                    healthTitle = stream.health_msg || '正常';
+                } else if (stream.health_status === 'error') {
+                    healthDotClass = 'status-error';
+                    healthTitle = stream.health_msg || '异常';
+                }
+
                 return `
                     <tr>
                         <td>${stream.id}</td>
                         <td>${stream.incoming_port}</td>
                         <td>${safeHost}:${stream.forwarding_port}</td>
-                        <td>${safeMemo}</td>
+                        <td class="memo-cell" title="${safeMemo}">${safeMemo}</td>
+                        <td>
+                            <div style="display: flex; align-items: center;" title="${escapeHtml(healthTitle)}">
+                                <span class="status-dot ${healthDotClass}"></span>
+                                <span class="health-text">${stream.health_status === 'ok' ? '健康' : (stream.health_status === 'error' ? '异常' : '未知')}</span>
+                            </div>
+                        </td>
                         <td>${linksHtml}</td>
                         <td>
                             <label class="toggle-switch" onclick="event.stopPropagation()">
@@ -798,6 +865,7 @@
                     </tr>
                 `;
             }).join('');
+
         }
 
         // 切换启用/禁用状态

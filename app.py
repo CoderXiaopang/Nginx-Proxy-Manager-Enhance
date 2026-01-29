@@ -11,6 +11,10 @@ import sqlite3
 import os
 from functools import wraps
 from datetime import timedelta
+import threading
+import time
+import socket
+
 
 # 尝试加载 .env 文件（可选依赖）
 try:
@@ -28,6 +32,16 @@ NPM_HOST = os.environ.get('NPM_HOST', 'localhost:81')
 NPM_BASE_URL = f"http://{NPM_HOST}/api"
 DB_NAME = "npm_meta.db"
 
+# 后台健康检查用的管理员账号（可选）
+NPM_ADMIN_EMAIL = os.environ.get('NPM_ADMIN_EMAIL', '')
+NPM_ADMIN_PASSWORD = os.environ.get('NPM_ADMIN_PASSWORD', '')
+
+
+# 全局变量：存储健康状态
+# {stream_id: {"status": "ok"|"error"|"unknown", "msg": "...", "last_check": timestamp}}
+STREAM_HEALTH_STATUS = {}
+
+
 
 # ==================== 数据库初始化 ====================
 def init_db():
@@ -38,8 +52,24 @@ def init_db():
                         memo TEXT,
                         doc_url TEXT,
                         test_url TEXT,
-                        repo_url TEXT)''')
+                        repo_url TEXT,
+                        health_status TEXT DEFAULT 'unknown',
+                        health_msg TEXT DEFAULT 'Pending...',
+                        health_last_check REAL)''')
+        
+        # 检查是否需要添加新字段（兼容旧数据库）
+        cursor = conn.execute("PRAGMA table_info(streams)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'health_status' not in columns:
+            conn.execute("ALTER TABLE streams ADD COLUMN health_status TEXT DEFAULT 'unknown'")
+        if 'health_msg' not in columns:
+            conn.execute("ALTER TABLE streams ADD COLUMN health_msg TEXT DEFAULT 'Pending...'")
+        if 'health_last_check' not in columns:
+            conn.execute("ALTER TABLE streams ADD COLUMN health_last_check REAL")
+        
         print("✅ 数据库初始化完成")
+
 
 
 # ==================== 装饰器：登录验证 ====================
@@ -239,7 +269,155 @@ def npm_delete_stream(token, stream_id):
     except Exception as e:
         return {"success": False, "error": f"系统错误: {str(e)}"}
 
-# ==================== 数据库操作 ====================
+        return {"success": False, "error": f"系统错误: {str(e)}"}
+
+
+# ==================== 健康检查逻辑 ====================
+def check_stream_connectivity(forward_ip, forward_port):
+    """
+    检查连通性:
+    1. 优先尝试 http://ip:port/health
+    2. 失败则尝试简单的 TCP 连接
+    """
+    # 1. 尝试 /health 接口
+    try:
+        url = f"http://{forward_ip}:{forward_port}/health"
+        r = requests.get(url, timeout=3)
+        if r.status_code == 200:
+            try:
+                # 尝试解析 JSON
+                data = r.json()
+                if data.get("status") == "ok":
+                    return {"status": "ok", "msg": "Health check ok"}
+            except:
+                pass
+            # 即使没有 status: ok，只要 200 也算通
+            return {"status": "ok", "msg": f"HTTP {r.status_code}"}
+    except:
+        # HTTP 失败，忽略，尝试 TCP
+        pass
+
+    # 2. 尝试 TCP 连接 (curl host:port 这里简化为 connect 成功即可)
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(3)
+        result = sock.connect_ex((forward_ip, int(forward_port)))
+        sock.close()
+        
+        if result == 0:
+            return {"status": "ok", "msg": "TCP connect success"}
+        else:
+            return {"status": "error", "msg": f"TCP error code: {result}"}
+    except Exception as e:
+        return {"status": "error", "msg": f"Check error: {str(e)}"}
+
+
+def save_health_status(npm_id, status, msg):
+    """保存健康状态到数据库"""
+    with sqlite3.connect(DB_NAME) as conn:
+        # 先确保记录存在
+        conn.execute("INSERT OR IGNORE INTO streams (npm_id) VALUES (?)", (npm_id,))
+        # 更新健康状态
+        conn.execute("""UPDATE streams 
+                       SET health_status = ?, health_msg = ?, health_last_check = ?
+                       WHERE npm_id = ?""",
+                     (status, msg, time.time(), npm_id))
+
+
+def get_health_status(npm_id):
+    """从数据库获取健康状态"""
+    with sqlite3.connect(DB_NAME) as conn:
+        result = conn.execute(
+            "SELECT health_status, health_msg, health_last_check FROM streams WHERE npm_id = ?",
+            (npm_id,)
+        ).fetchone()
+        if result:
+            return {
+                'status': result[0] or 'unknown',
+                'msg': result[1] or 'Pending...',
+                'last_check': result[2]
+            }
+        return {'status': 'unknown', 'msg': 'Pending...', 'last_check': None}
+
+
+def health_check_daemon(app):
+    """后台线程：定时检查所有转发的健康状态"""
+    with app.app_context():
+        print("🚑 健康检查线程已启动...")
+        
+        # 尝试获取后台管理员 token
+        bg_token = None
+        if NPM_ADMIN_EMAIL and NPM_ADMIN_PASSWORD:
+            print("🔑 使用管理员账号登录 NPM...")
+            login_result = npm_login(NPM_ADMIN_EMAIL, NPM_ADMIN_PASSWORD)
+            if login_result['success']:
+                bg_token = login_result['token']
+                print("✅ 后台管理员登录成功")
+            else:
+                print(f"❌ 后台管理员登录失败: {login_result.get('error')}")
+        
+        # 🔥 立即执行第一次检查
+        def run_health_check():
+            try:
+                # 优先使用后台 token 获取最新数据
+                streams_to_check = []
+                
+                if bg_token:
+                    # 使用后台管理员账号获取流列表
+                    result = npm_get_streams(bg_token)
+                    if result['success']:
+                        streams_to_check = result['data']
+                        print(f"📡 从 NPM 获取到 {len(streams_to_check)} 个流")
+                else:
+                    # 降级：使用缓存的数据
+                    global CACHED_STREAMS
+                    if 'CACHED_STREAMS' in globals() and CACHED_STREAMS:
+                        streams_to_check = CACHED_STREAMS
+                        print(f"📦 使用缓存数据，共 {len(streams_to_check)} 个流")
+                
+                if not streams_to_check:
+                    print("⚠️  没有可检查的流（请配置 NPM_ADMIN_EMAIL 和 NPM_ADMIN_PASSWORD，或等待用户访问页面）")
+                    return
+                
+                # 执行健康检查
+                checked_count = 0
+                for stream in streams_to_check:
+                    sid = stream.get('id')
+                    ip = stream.get('forwarding_host')
+                    port = stream.get('forwarding_port')
+                    
+                    if ip and port:
+                        res = check_stream_connectivity(ip, port)
+                        # 保存到数据库
+                        save_health_status(sid, res['status'], res['msg'])
+                        # 同时更新内存缓存（可选，用于快速访问）
+                        STREAM_HEALTH_STATUS[sid] = {
+                            "status": res['status'],
+                            "msg": res['msg'],
+                            "last_check": time.time()
+                        }
+                        checked_count += 1
+                
+                print(f"✅ 健康检查完成，检查了 {checked_count} 个服务")
+            except Exception as e:
+                print(f"❌ Health check error: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # 等待2秒让应用完全启动
+        time.sleep(2)
+        print("🔍 开始首次健康检查...")
+        run_health_check()
+        
+        # 定时检查
+        while True:
+            time.sleep(60)  # 每隔 1 分钟
+            print("🔄 执行定时健康检查...")
+            run_health_check()
+
+
+
+
 def save_memo(npm_id, memo, doc_url='', test_url='', repo_url=''):
     """保存备注和URL到数据库"""
     with sqlite3.connect(DB_NAME) as conn:
@@ -324,6 +502,11 @@ def api_get_streams():
     if not npm_result['success']:
         return jsonify(npm_result), 500
     
+    # 缓存 streams 数据供后台线程使用
+    global CACHED_STREAMS
+    CACHED_STREAMS = npm_result['data']
+
+    
     # 获取本地备注和URL
     memos = get_all_memos()
     
@@ -335,6 +518,12 @@ def api_get_streams():
         stream['doc_url'] = stream_data.get('doc_url', '') if isinstance(stream_data, dict) else ''
         stream['test_url'] = stream_data.get('test_url', '') if isinstance(stream_data, dict) else ''
         stream['repo_url'] = stream_data.get('repo_url', '') if isinstance(stream_data, dict) else ''
+        
+        # 从数据库读取健康状态（而非内存）
+        health = get_health_status(stream['id'])
+        stream['health_status'] = health['status']
+        stream['health_msg'] = health['msg']
+
     
     return jsonify({"success": True, "data": streams})
 
@@ -505,6 +694,11 @@ if __name__ == '__main__':
     print(f"🔗 NPM 服务器: {NPM_HOST}")
     print("=" * 60)
     
+    # 启动后台健康检查线程
+    t = threading.Thread(target=health_check_daemon, args=(app,), daemon=True)
+    t.start()
+    
     # 启动 Flask 应用
-    app.run(debug=True, host='0.0.0.0', port=6789)
+    app.run(debug=True, use_reloader=False, host='0.0.0.0', port=6789)
+
 
