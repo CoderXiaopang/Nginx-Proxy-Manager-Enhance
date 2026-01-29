@@ -340,6 +340,26 @@ def get_health_status(npm_id):
         return {'status': 'unknown', 'msg': 'Pending...', 'last_check': None}
 
 
+def check_single_stream_health(stream_id, ip, port):
+    """检查单个流的健康状态并保存到数据库"""
+    if not ip or not port:
+        return
+    
+    try:
+        res = check_stream_connectivity(ip, port)
+        # 保存到数据库
+        save_health_status(stream_id, res['status'], res['msg'])
+        # 同时更新内存缓存
+        STREAM_HEALTH_STATUS[stream_id] = {
+            "status": res['status'],
+            "msg": res['msg'],
+            "last_check": time.time()
+        }
+        print(f"✅ 立即检查流 {stream_id} 的健康状态: {res['status']}")
+    except Exception as e:
+        print(f"❌ 检查流 {stream_id} 失败: {e}")
+
+
 def health_check_daemon(app):
     """后台线程：定时检查所有转发的健康状态"""
     with app.app_context():
@@ -591,6 +611,15 @@ def api_create_stream():
         if result['success']:
             npm_id = result['data']['id']
             save_memo(npm_id, memo, doc_url, test_url, repo_url)
+            
+            # 🔥 立即检查健康状态
+            import threading
+            threading.Thread(
+                target=check_single_stream_health,
+                args=(npm_id, forward_ip, forward_port),
+                daemon=True
+            ).start()
+            
             return jsonify({"success": True, "message": "创建成功", "data": result['data']})
         else:
             return jsonify(result), 500
@@ -668,6 +697,15 @@ def api_update_stream(stream_id):
         if result['success']:
             # 更新本地备注
             save_memo(stream_id, memo, doc_url, test_url, repo_url)
+            
+            # 🔥 立即检查健康状态
+            import threading
+            threading.Thread(
+                target=check_single_stream_health,
+                args=(stream_id, forward_ip, forward_port),
+                daemon=True
+            ).start()
+            
             return jsonify({"success": True, "message": "更新成功", "data": result['data']})
         else:
             return jsonify(result), 500
